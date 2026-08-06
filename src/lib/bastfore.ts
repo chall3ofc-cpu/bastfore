@@ -1,11 +1,11 @@
-export type ItemStatus = "pantry" | "freezer" | "consumed" | "pantry_dry";
+export type ItemStatus = "pantry" | "freezer" | "consumed" | "pantry_dry" | "wasted";
 
 export type FoodItem = {
   id: string;
   name: string;
   expirationDate: string; // ISO
   status: ItemStatus;
-  previousStatus?: "pantry" | "pantry_dry"; // Det nya minnesfältet för frysen
+  previousStatus?: "pantry" | "pantry_dry";
   dateAdded: string; // ISO
 };
 
@@ -70,28 +70,5 @@ export const uid = () => Math.random().toString(36).slice(2) + Date.now().toStri
 export const defaultSettings: Settings = { remindDaysBefore: 3, remindTime: "11:00" };
 
 export const seedItems = (): FoodItem[] => {
-  const now = new Date().toISOString();
-  return [
-    {
-      id: uid(),
-      name: "Blandfärs 500g",
-      expirationDate: addDays(0).toISOString(),
-      status: "pantry",
-      dateAdded: now,
-    },
-    {
-      id: uid(),
-      name: "Vispgrädde 2.5dl",
-      expirationDate: addDays(3).toISOString(),
-      status: "pantry",
-      dateAdded: now,
-    },
-    {
-      id: uid(),
-      name: "Herrgårdsost",
-      expirationDate: addDays(12).toISOString(),
-      status: "pantry",
-      dateAdded: now,
-    },
-  ];
+  return []; // Helt tom lista så att appen startar fräsch
 };
