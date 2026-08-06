@@ -57,7 +57,7 @@ function App() {
           />
           <div>
             <h1 className="text-2xl font-black tracking-tight text-foreground">BästFöre</h1>
-            <p className="text-xs font-semibold text-muted-foreground mt-1 uppercase tracking-widest">Öppnar kylen...</p>
+            <p className="text-xs font-semibold text-muted-foreground mt-1 uppercase tracking-widest">Öppnar Köket...</p>
           </div>
           {/* En snygg, minimalistisk laddningssnurra längst ner */}
           <Loader2 className="size-5 animate-spin text-primary mt-4 opacity-70" />
