@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Refrigerator, ScanLine, Settings as Gear } from "lucide-react";
-import { useState } from "react";
+import { Refrigerator, ScanLine, Settings as Gear, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { urgencyOf } from "@/lib/bastfore";
 import { useKitchen } from "@/hooks/use-kitchen";
@@ -31,7 +31,40 @@ type Tab = "home" | "scan" | "settings";
 
 function App() {
   const [tab, setTab] = useState<Tab>("home");
-  const { items, addItem, setStatus, setExpiration, setName, settings, setSettings } = useKitchen();
+  const { items, addItem, setStatus, setExpiration, setName, settings, setSettings, hydrated } = useKitchen();
+  const [showSplash, setShowSplash] = useState(true);
+
+  // Hanterar att startskärmen visas i minst 1.2 sekunder för en lyxig känsla
+  useEffect(() => {
+    if (hydrated) {
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [hydrated]);
+
+  // LOADING SCREEN / SPLASH SCREEN
+  if (showSplash) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background px-6 animate-[fade-in_0.2s_ease]">
+        <div className="flex flex-col items-center gap-4 text-center">
+          {/* Din app-logga animeras mjukt i mitten */}
+          <img 
+            src="/logo.png" 
+            alt="BästFöre Logga" 
+            className="w-24 h-24 object-contain shadow-lg rounded-2xl animate-pulse" 
+          />
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-foreground">BästFöre</h1>
+            <p className="text-xs font-semibold text-muted-foreground mt-1 uppercase tracking-widest">Öppnar kylen...</p>
+          </div>
+          {/* En snygg, minimalistisk laddningssnurra längst ner */}
+          <Loader2 className="size-5 animate-spin text-primary mt-4 opacity-70" />
+        </div>
+      </div>
+    );
+  }
 
   const urgentCount = items.filter(
     (i) => (i.status === "pantry" || i.status === "pantry_dry") && urgencyOf(i.expirationDate) === "red",
@@ -44,7 +77,7 @@ function App() {
   ];
 
   return (
-    <main className="mx-auto min-h-screen max-w-md bg-background pb-28">
+    <main className="mx-auto min-h-screen max-w-md bg-background pb-28 animate-[fade-in_0.3s_ease]">
       {tab === "home" && (
         <KitchenScreen
           items={items}
