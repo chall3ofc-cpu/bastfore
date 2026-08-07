@@ -118,22 +118,27 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
         </p>
       </section>
 
-      {/* UPPDATERAD NOTISKNAPP SOM KÄNNER AV OM DET REDAN ÄR AKTIVERAT */}
+      {/* BENHÅRD ONESIGNAL-KNAPP UTAN LÅSNINGAR */}
       <div className="mt-6">
         <button
-          onClick={() => {
-            if ('Notification' in window) {
-              // Om statusen REDAN är granted (godkänd)
-              if (Notification.permission === 'granted') {
-                alert('ℹ️ Notiser är redan aktiverade för BästFöre på den här telefonen!');
+          onClick={async () => {
+            const win = window as any;
+            if (win.OneSignal) {
+              const isPushSupported = win.OneSignal.Notifications.isPushSupported();
+              if (isPushSupported) {
+                // Om användaren redan är anmäld på servern
+                const isOptedIn = win.OneSignal.Notifications.permission;
+                if (isOptedIn === "granted") {
+                  alert("ℹ️ Den här iPhonens notis-id är redan registrerat och aktivt på internet-servern!");
+                } else {
+                  // Annars öppnar vi Apples tillåtelsedialog live!
+                  await win.OneSignal.Notifications.requestPermission();
+                }
               } else {
-                // Annars ber vi om lov som vanligt
-                Notification.requestPermission().then(permission => {
-                  if (permission === 'granted') {
-                    alert('✅ Notiser är nu aktiverade på din iPhone!');
-                  }
-                });
+                alert("⚠️ Se till att du öppnat appen sparad från hemskärmen (PWA) för att tillåta notiser!");
               }
+            } else {
+              runAlarm();
             }
           }}
           className="w-full rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-card transition-transform active:scale-[0.98]"
