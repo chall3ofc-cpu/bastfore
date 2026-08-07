@@ -66,7 +66,6 @@ export function useKitchen() {
     const pollDatabase = async () => {
       while (isActive) {
         try {
-          // 1. Hämta matvaror live
           const resItems = await fetch(`https://fly.dev{cleanId}_items`);
           if (resItems.status === 200 && isActive) {
             const remoteItems = await resItems.json();
@@ -77,7 +76,6 @@ export function useKitchen() {
             }
           }
 
-          // 2. Hämta medlemslistan live (Fixad och rensad från sökvägstrubbel)
           const resKeys = await fetch(`https://fly.dev{cleanId}_member_`);
           if (resKeys.status === 200 && isActive) {
             const keys = await resKeys.json();
@@ -85,7 +83,6 @@ export function useKitchen() {
             
             if (Array.isArray(keys)) {
               for (const key of keys) {
-                // Plockar ut allt efter _member_ oavsett vad servern lägger till framför
                 const searchStr = `${cleanId}_member_`;
                 const idx = key.indexOf(searchStr);
                 if (idx !== -1) {
@@ -96,7 +93,6 @@ export function useKitchen() {
                 }
               }
             }
-            // Sorterar så att du alltid ser dig själv eller medlemmarna i snygg ordning
             setMembers(memberNames.sort());
           }
         } catch (e) {
@@ -110,6 +106,22 @@ export function useKitchen() {
 
     return () => { isActive = false; };
   }, [settings.householdId, items]);
+
+  // NYTT: Funktion för att kontrollera om ett hushåll faktiskt existerar på servern
+  const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
+    try {
+      const cleanId = code.replace(/[^A-Z0-9]/g, "");
+      // Vi kollar om det finns några registrerade medlemsnycklar för detta hushåll
+      const res = await fetch(`https://fly.dev{cleanId}_member_`);
+      if (res.status === 200) {
+        const keys = await res.json();
+        return Array.isArray(keys) && keys.length > 0;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
     setItems((prev) => [
@@ -137,5 +149,5 @@ export function useKitchen() {
   };
   const setName = useCallback(textSetter, []);
 
-  return { items, members, addItem, setStatus, setExpiration, setName, settings, setSettings, hydrated };
+  return { items, members, verifyHousehold, addItem, setStatus, setExpiration, setName, settings, setSettings, hydrated };
 }
