@@ -50,6 +50,7 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
+
   useEffect(() => {
     if (!settings.householdId || !hydrated) return;
 
@@ -93,7 +94,6 @@ export function useKitchen() {
     };
   }, [settings.householdId, settings.username, hydrated, items]);
 
-  // FIXAD: Godkänner koden omedelbart så att den ALDRIG kan frysa knappen!
   const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
     const cleanCode = code.trim().toUpperCase();
     return cleanCode.startsWith("HUSHÅLL-") && cleanCode.length > 8;
