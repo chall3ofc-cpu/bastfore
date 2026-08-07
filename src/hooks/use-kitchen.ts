@@ -29,7 +29,6 @@ export function useKitchen() {
     setHydrated(true);
   }, []);
 
-  // Sparar ändringar live till molnet och pingar medlemslistan
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
@@ -57,7 +56,6 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-  // Hämtar uppdateringar från kylen och familjemedlemmar varannan sekund
   useEffect(() => {
     if (!settings.householdId) return;
 
@@ -108,16 +106,23 @@ export function useKitchen() {
     return () => { isActive = false; };
   }, [settings.householdId, items]);
 
-  // FIXAD: Kollar nu mot _items-strängen vilket garanterar att den aldrig hänger sig
+  // UPPDATERAD: Avbryter sökningen automatiskt efter 1.5 sekunder om koden är felaktig
   const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
+    // Skapar en avbryts-kontroll (AbortController)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500); // 1500 ms = 1.5 sekund max!
+
     try {
       const cleanId = code.replace(/[^A-Z0-9]/g, "");
-      const res = await fetch(`https://fly.dev{cleanId}_items`);
+      const res = await fetch(`https://fly.dev{cleanId}_items`, {
+        signal: controller.signal, // Kopplar tidsgränsen till nätverksanropet
+      });
       
-      // Om servern svarar med 200 (OK) betyder det att hushållet existerar på riktigt!
+      clearTimeout(timeoutId); // Stäng av timern om servern hann svara i tid
       return res.status === 200;
     } catch {
-      return false;
+      clearTimeout(timeoutId);
+      return false; // Om timern stängde ner anropet tolkar appen det direkt som att koden är fel
     }
   }, []);
 
