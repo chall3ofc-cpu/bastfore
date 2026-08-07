@@ -31,10 +31,9 @@ type Tab = "home" | "scan" | "settings";
 
 function App() {
   const [tab, setTab] = useState<Tab>("home");
-  const { items, members, addItem, setStatus, setExpiration, setName, settings, setSettings } = useKitchen();
+  const { items, members, addItem, setStatus, setExpiration, setName, settings, setSettings, hydrated } = useKitchen();
   const [showSplash, setShowSplash] = useState(true);
 
-  // Hanterar att startskärmen visas i minst 1.2 sekunder för en lyxig känsla
   useEffect(() => {
     if (hydrated) {
       const timer = setTimeout(() => {
@@ -44,12 +43,10 @@ function App() {
     }
   }, [hydrated]);
 
-  // LOADING SCREEN / SPLASH SCREEN
   if (showSplash) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background px-6 animate-[fade-in_0.2s_ease]">
         <div className="flex flex-col items-center gap-4 text-center">
-          {/* Din app-logga animeras mjukt i mitten */}
           <img 
             src="/logo.png" 
             alt="BästFöre Logga" 
@@ -57,9 +54,8 @@ function App() {
           />
           <div>
             <h1 className="text-2xl font-black tracking-tight text-foreground">BästFöre</h1>
-            <p className="text-xs font-semibold text-muted-foreground mt-1 uppercase tracking-widest">Öppnar Köket...</p>
+            <p className="text-xs font-semibold text-muted-foreground mt-1 uppercase tracking-widest">Öppnar köket...</p>
           </div>
-          {/* En snygg, minimalistisk laddningssnurra längst ner */}
           <Loader2 className="size-5 animate-spin text-primary mt-4 opacity-70" />
         </div>
       </div>
@@ -91,7 +87,7 @@ function App() {
         <ScanScreen onAdd={(name, date, status) => addItem(name, date, status)} />
       )}
       {tab === "settings" && (
-      <SettingsScreen items={items} members={members} settings={settings} onChange={setSettings} />
+        <SettingsScreen items={items} members={members} settings={settings} onChange={setSettings} />
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-md items-stretch border-t border-border bg-card/95 px-2 pb-3 pt-2 backdrop-blur">
