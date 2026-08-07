@@ -31,7 +31,7 @@ type Tab = "home" | "scan" | "settings";
 
 function App() {
   const [tab, setTab] = useState<Tab>("home");
-  const { items, members, verifyHousehold, createHouseholdAction, addItem, setStatus, setExpiration, setName, settings, setSettings, hydrated } = useKitchen();
+  const { items, addItem, setStatus, setExpiration, setName, settings, setSettings, hydrated } = useKitchen();
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
@@ -87,7 +87,7 @@ function App() {
         <ScanScreen onAdd={(name, date, status) => addItem(name, date, status)} />
       )}
       {tab === "settings" && (
-        <SettingsScreen items={items} members={members} verifyHousehold={verifyHousehold} createHouseholdAction={createHouseholdAction} settings={settings} onChange={setSettings} />
+        <SettingsScreen items={items} settings={settings} onChange={setSettings} />
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-md items-stretch border-t border-border bg-card/95 px-2 pb-3 pt-2 backdrop-blur">
