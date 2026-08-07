@@ -29,7 +29,6 @@ export function useKitchen() {
     setHydrated(true);
   }, []);
 
-  // Sparar matvaror och medlemmar i LocalStorage
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
@@ -41,50 +40,94 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-
-  // AUTOMATISK SYNKRONISERING: Uppdaterar medlemslistan lokalt för skärmen
+  // ÄKTA LIVE-LYSSNARE: Hämtar medlemslistan live från CountAPI varannan sekund
   useEffect(() => {
     if (!settings.householdId || !hydrated) return;
-    
-    const localUser = settings.username || "Okänd Användare";
-    if (settings.householdId.startsWith("HUSHÅLL-")) {
-      // Om två enheter använder samma kod, läggs båda namnen till för att simulera hushållet
-      setMembers((prev) => {
-        const list = settings.username === "Datorn" ? ["Datorn", "Mobilen"] : ["Mobilen"];
-        return list.sort();
-      });
-    }
-  }, [settings.householdId, settings.username, hydrated]);
 
-  // SKAPA HUSHÅLL: Sparar koden på den kostnadsfria databassidan (CountAPI)
+    let isActive = true;
+    const cleanId = settings.householdId.replace(/[^A-Z0-9]/g, "");
+
+    const pollMembers = async () => {
+      while (isActive) {
+        try {
+          // Vi frågar CountAPI efter medlemslistan för detta hushåll
+          const res = await fetch(`https://counterapi.dev{cleanId}_members`);
+          if (res.status === 200 && isActive) {
+            const data = await res.json();
+            if (data && data.count) {
+              // Avkodar textsträngen med alla namn från servern
+              const remoteMembers = JSON.parse(decodeURIComponent(data.count));
+              if (Array.isArray(remoteMembers)) {
+                setMembers(remoteMembers.sort());
+              }
+            }
+          }
+        } catch (e) {}
+        await new Promise((r) => setTimeout(r, 2000)); // Kollar varannan sekund
+      }
+    };
+
+    pollMembers();
+
+    return () => {
+      isActive = false;
+    };
+  }, [settings.householdId, hydrated]);
+
+  // ÄKTA SKAPA HUSHÅLL: Sparar koden och skaparens namn på CountAPI
   const createHouseholdAction = useCallback(async () => {
+    if (!settings.username) return;
     const newCode = "HUSHÅLL-" + Math.random().toString(36).substring(2, 7).toUpperCase();
+    const cleanId = newCode.replace(/[^A-Z0-9]/g, "");
+    
     try {
-      // Skapar en unik publik nyckel på servern och sätter värdet till 1 (vilket betyder att den existerar!)
-      await fetch(`https://counterapi.dev{newCode}/set?count=1`);
+      // 1. Registrera att hushållskoden existerar i molnet
+      await fetch(`https://counterapi.dev{cleanId}/set?count=1`);
+      
+      // 2. Skapa medlemslistan med skaparens namn
+      const startList = [settings.username];
+      await fetch(`https://counterapi.dev{cleanId}_members/set?count=${encodeURIComponent(JSON.stringify(startList))}`);
+      
       setSettings((prev) => ({ ...prev, householdId: newCode }));
     } catch (e) {
-      // Om servern blockerar, tillåt ändå lokal testning
       setSettings((prev) => ({ ...prev, householdId: newCode }));
     }
-  }, []);
+  }, [settings.username]);
 
-  // GÅ MED I HUSHÅLL: Stämmer av mot den kostnadsfria databassidan
+  // ÄKTA GÅ MED: Kollar om koden finns på CountAPI på riktigt, och lägger till ditt namn i listan
   const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
     const cleanCode = code.trim().toUpperCase();
     if (!cleanCode.startsWith("HUSHÅLL-") || cleanCode.length < 9) return false;
-    
+    if (!settings.username) return false;
+
+    const cleanId = cleanCode.replace(/[^A-Z0-9]/g, "");
+
     try {
-      // Vi frågar den kostnadsfria sidan om denna unika kod har sparats där förut
-      const res = await fetch(`https://counterapi.dev{cleanCode}`);
+      // 1. Fråga CountAPI om hushållskoden existerar på riktigt
+      const resCheck = await fetch(`https://counterapi.dev{cleanId}`);
+      if (resCheck.status !== 200) return false; // Koden finns inte! Visa rött direkt.
+
+      // 2. Koden finns! Hämta den nuvarande medlemslistan från servern
+      const resList = await fetch(`https://counterapi.dev{cleanId}_members`);
+      let currentMembers = [settings.username];
       
-      // Om koden finns på sidan svarar den med statuskod 200 (Hittad!), annars 404
-      return res.status === 200;
+      if (resList.status === 200) {
+        const listData = await resList.json();
+        if (listData && listData.count) {
+          const parsed = JSON.parse(decodeURIComponent(listData.count));
+          if (Array.isArray(parsed)) {
+            currentMembers = Array.from(new Set([...parsed, settings.username]));
+          }
+        }
+      }
+
+      // 3. Skicka upp den uppdaterade medlemslistan till molnet
+      await fetch(`https://counterapi.dev{cleanId}_members/set?count=${encodeURIComponent(JSON.stringify(currentMembers))}`);
+      return true;
     } catch {
-      // Genväg för att underlätta lokalt om nätverket blockerar anropet
-      return cleanCode.length > 8;
+      return false;
     }
-  }, []);
+  }, [settings.username]);
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
     setItems((prev) => [...prev, { id: uid(), name, expirationDate: expirationDate.toISOString(), status, dateAdded: new Date().toISOString() }]);
