@@ -8,6 +8,7 @@ import {
   defaultSettings,
   seedItems,
   uid,
+  supabase,
 } from "@/lib/bastfore";
 
 export function useKitchen() {
@@ -16,6 +17,7 @@ export function useKitchen() {
   const [members, setMembers] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const isUpdatingRef = useRef(false);
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     try {
@@ -29,96 +31,93 @@ export function useKitchen() {
     setHydrated(true);
   }, []);
 
-  // Sparar matvaror och medlemmar live i en universell, supersäker och blixtsnabb databaskanal
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       
-      if (settings.householdId && settings.username && !isUpdatingRef.current) {
-        const cleanId = settings.householdId.replace(/[^A-Z0-9]/g, "");
-        
-        // Sparar matvarulistan
-        fetch(`https://counterapi.dev{cleanId}/set?count=${encodeURIComponent(JSON.stringify(items))}`).catch(() => {});
-
-        // Lägger till och sparar medlemmen live i databasen
-        fetch(`https://counterapi.dev{cleanId}_user_${settings.username}/set?count=1`).catch(() => {});
+      if (settings.householdId && channelRef.current && !isUpdatingRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "sync_items",
+          payload: { items },
+        });
       }
     }
-  }, [items, hydrated, settings.householdId, settings.username]);
+  }, [items, hydrated, settings.householdId]);
 
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-  // Hämtar automatiskt uppdateringar från kylen och medlemslistan varannan sekund
   useEffect(() => {
-    if (!settings.householdId) return;
+    if (!settings.householdId || !hydrated) return;
 
-    let isActive = true;
-    const cleanId = settings.householdId.replace(/[^A-Z0-9]/g, "");
+    const cleanRoomId = settings.householdId.replace(/[^A-Z0-9]/g, "");
+    const channel = supabase.channel(`room_${cleanRoomId}`, {
+      config: { broadcast: { self: false }, presence: { key: settings.username || "Okänd" } },
+    });
 
-    const pollDatabase = async () => {
-      while (isActive) {
-        try {
-          // 1. Hämta matvaror live från databasen
-          const resItems = await fetch(`https://counterapi.dev{cleanId}`);
-          if (resItems.status === 200 && isActive) {
-            const data = await resItems.json();
-            if (data && data.count) {
-              const remoteItems = JSON.parse(decodeURIComponent(data.count));
-              if (Array.isArray(remoteItems) && JSON.stringify(remoteItems) !== JSON.stringify(items)) {
-                isUpdatingRef.current = true;
-                setItems(remoteItems);
-                setTimeout(() => { isUpdatingRef.current = false; }, 150);
-              }
-            }
-          }
+    channelRef.current = channel;
 
-          // 2. Hämta medlemmar live från databasen
-          // För att göra det 100% säkert utan att servern hänger sig lägger vi till oss själva och kollar nätverket
-          const localUser = settings.username || "Användare";
-          if (!members.includes(localUser)) {
-            setMembers((prev) => prev.includes(localUser) ? prev : [...prev, localUser].sort());
-          }
-        } catch (e) {
-          // Tyst felhantering
-        }
-        await new Promise((r) => setTimeout(r, 2000));
+    channel.on("broadcast", { event: "sync_items" }, (response: any) => {
+      if (response.payload && Array.isArray(response.payload.items)) {
+        isUpdatingRef.current = true;
+        setItems(response.payload.items);
+        setTimeout(() => { isUpdatingRef.current = false; }, 100);
       }
+    });
+
+    channel.on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState();
+      const currentMembers = Object.keys(state);
+      setMembers(currentMembers.sort());
+    });
+
+    channel.subscribe(async (status) => {
+      if (status === "SUBSCRIBED" && settings.username) {
+        await channel.track({ online_at: new Date().toISOString() });
+        channel.send({ type: "broadcast", event: "request_sync", payload: {} });
+      }
+    });
+
+    channel.on("broadcast", { event: "request_sync" }, () => {
+      if (items.length > 0) {
+        channel.send({ type: "broadcast", event: "sync_items", payload: { items } });
+      }
+    });
+
+    return () => {
+      channel.unsubscribe();
+      channelRef.current = null;
     };
+  }, [settings.householdId, settings.username, hydrated, items]);
 
-    pollDatabase();
-
-    return () => { isActive = false; };
-  }, [settings.householdId, items, settings.username, members]);
-
-  // SKOTTSÄKER VALIDERING: Svarar på exakt 300 millisekunder utan att frysa knappen!
   const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
-    try {
-      const cleanId = code.replace(/[^A-Z0-9]/g, "");
-      
-      // Vi kollar om det finns ett registrerat hushåll med det ID:t på den globala API-servern
-      const res = await fetch(`https://counterapi.dev{cleanId}`);
-      
-      // Om koden finns på servern svarar den 200, annars svarar den 404 (Hittades ej)
-      return res.status === 200;
-    } catch {
-      return false;
-    }
+    const cleanRoomId = code.replace(/[^A-Z0-9]/g, "");
+    
+    const checkPromise = new Promise<boolean>(async (resolve) => {
+      try {
+        const tempChannel = supabase.channel(`check_${cleanRoomId}`);
+        tempChannel.subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            tempChannel.unsubscribe();
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        });
+      } catch {
+        resolve(false);
+      }
+    });
+
+    const timeoutPromise = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1000));
+    return Promise.race([checkPromise, timeoutPromise]);
   }, []);
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
-    setItems((prev) => [
-      ...prev,
-      {
-        id: uid(),
-        name,
-        expirationDate: expirationDate.toISOString(),
-        status: status,
-        dateAdded: new Date().toISOString(),
-      },
-    ]);
+    setItems((prev) => [...prev, { id: uid(), name, expirationDate: expirationDate.toISOString(), status, dateAdded: new Date().toISOString() }]);
   }, []);
 
   const setStatus = useCallback((id: string, status: ItemStatus, previousStatus?: "pantry" | "pantry_dry") => {
@@ -129,10 +128,9 @@ export function useKitchen() {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, expirationDate: date.toISOString() } : i)));
   }, []);
 
-  const textSetter = (id: string, name: string) => {
+  const setName = useCallback((id: string, name: string) => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, name } : i)));
-  };
-  const setName = useCallback(textSetter, []);
+  }, []);
 
   return { items, members, verifyHousehold, addItem, setStatus, setExpiration, setName, settings, setSettings, hydrated };
 }
