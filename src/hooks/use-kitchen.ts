@@ -50,13 +50,21 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-
+  // UPPDATERAD LIVE-SPÅRNING: Lägger till skaparen direkt och lyssnar efter familjen live
   useEffect(() => {
     if (!settings.householdId || !hydrated) return;
 
     const cleanRoomId = settings.householdId.replace(/[^A-Z0-9]/g, "");
+    const localUser = settings.username || "Okänd Användare";
+    
+    // Sätter dig själv som startmedlem direkt så det aldrig står 0
+    setMembers([localUser]);
+
     const channel = supabase.channel(`room_${cleanRoomId}`, {
-      config: { broadcast: { self: false }, presence: { key: settings.username || "Okänd" } },
+      config: { 
+        broadcast: { self: false }, 
+        presence: { key: localUser } 
+      },
     });
 
     channelRef.current = channel;
@@ -69,14 +77,19 @@ export function useKitchen() {
       }
     });
 
+    // Uppdaterar medlemslistan live så fort någon ansluter eller lämnar
     channel.on("presence", { event: "sync" }, () => {
       const state = channel.presenceState();
       const currentMembers = Object.keys(state);
-      setMembers(currentMembers.sort());
+      
+      // Säkerställer att ditt eget namn ALLTID är med, plus alla unika externa medlemmar
+      const uniqueMembers = Array.from(new Set([localUser, ...currentMembers]));
+      setMembers(uniqueMembers.sort());
     });
 
     channel.subscribe(async (status) => {
-      if (status === "SUBSCRIBED" && settings.username) {
+      if (status === "SUBSCRIBED") {
+        // Skickar upp ditt namn till Supabase-servern live
         await channel.track({ online_at: new Date().toISOString() });
         channel.send({ type: "broadcast", event: "request_sync", payload: {} });
       }
@@ -103,7 +116,7 @@ export function useKitchen() {
     setItems((prev) => [...prev, { id: uid(), name, expirationDate: expirationDate.toISOString(), status, dateAdded: new Date().toISOString() }]);
   }, []);
 
-  const setStatus = useCallback((id: string, status: ItemStatus, previousStatus?: "pantry" | "pantry_dry") => {
+  const setStatus = useCallback((id: string, status: ItemStatus, previousStatus?: "pantry_dry" | "pantry") => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status, ...(previousStatus ? { previousStatus } : {}) } : i)));
   }, []);
 
