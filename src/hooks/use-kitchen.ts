@@ -50,6 +50,7 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
+
   useEffect(() => {
     if (!settings.householdId || !hydrated) return;
 
@@ -101,6 +102,7 @@ export function useKitchen() {
     };
   }, [settings.householdId, settings.username, hydrated, items]);
 
+  // SKAPA HUSHÅLL: Sparar koden live i din households-tabell i Supabase
   const createHouseholdAction = useCallback(async () => {
     const newCode = "HUSHÅLL-" + Math.random().toString(36).substring(2, 7).toUpperCase();
     try {
@@ -109,17 +111,24 @@ export function useKitchen() {
     } catch (e) {}
   }, []);
 
+  // DEN ÄKTA OCH RIKTIGA DATABASKOPPLINGEN
   const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
     const cleanCode = code.trim().toUpperCase();
     if (!cleanCode.startsWith("HUSHÅLL-") || cleanCode.length < 9) return false;
     
     try {
-      const { data, error } = await supabase
-        .from("households")
-        .select("id")
-        .eq("id", cleanCode);
-        
-      return !error && data && data.length > 0;
+      const timeoutPromise = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000));
+      
+      const fetchPromise = (async () => {
+        const { data, error } = await supabase
+          .from("households")
+          .select("id")
+          .eq("id", cleanCode);
+          
+        return !error && data && data.length > 0;
+      })();
+      
+      return Promise.race([fetchPromise, timeoutPromise]);
     } catch {
       return false;
     }
