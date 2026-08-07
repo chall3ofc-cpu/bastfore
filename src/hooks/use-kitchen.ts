@@ -16,7 +16,7 @@ export function useKitchen() {
   const [hydrated, setHydrated] = useState(false);
   const isUpdatingRef = useRef(false);
 
-  // Ladda från LocalStorage vid start
+  // 1. Ladda från LocalStorage vid start
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -29,64 +29,60 @@ export function useKitchen() {
     setHydrated(true);
   }, []);
 
-  // Spara lokalt när artiklar ändras
+  // 2. Spara lokalt och skicka live-synk till familjen via en öppen, godkänd kanal
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       
-      // LIVE-SYNKNING: Om vi har ett hushållsid och ändringen gjordes lokalt, skicka till familjen
+      // LIVE-SYNKNING: Skickar via en global, öppen JSON-storage-kanal som slipper CORS-blockeringar
       if (settings.householdId && !isUpdatingRef.current) {
-        fetch(`https://pubnub.com{settings.householdId}/0`, {
+        fetch(`https://val.town{settings.householdId}`, {
           method: "POST",
-          body: JSON.stringify({ action: "SYNC_ITEMS", payload: items }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(items),
         }).catch(() => {/* Tyst felhantering om offline */});
       }
     }
   }, [items, hydrated, settings.householdId]);
 
-  // Spara inställningar lokalt
+  // 3. Spara inställningar lokalt
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
 
-  // LIVE-LYSSNARE: Lyssnar på uppdateringar från familjemedlemmar
+  // 4. AUTOMATISK LIVE-POLLNING: Hämtar uppdateringar var 3:e sekund om man är i ett hushåll
   useEffect(() => {
     if (!settings.householdId) return;
 
     let isActive = true;
-    const controller = new AbortController();
-
-    const listenForUpdates = async () => {
-      const url = `https://pubnub.com{settings.householdId}/0?tt=0`;
-      
+    const fetchUpdates = async () => {
       while (isActive) {
         try {
-          const res = await fetch(url, { signal: controller.signal });
-          const data = await res.json();
-          if (data && data.m && data.m.length > 0) {
-            const lastMessage = JSON.parse(data.m[data.m.length - 1].d);
-            if (lastMessage.action === "SYNC_ITEMS") {
+          const res = await fetch(`https://val.town{settings.householdId}`);
+          if (res.status === 200) {
+            const remoteItems = await res.json();
+            if (remoteItems && Array.isArray(remoteItems) && JSON.stringify(remoteItems) !== JSON.stringify(items)) {
               isUpdatingRef.current = true;
-              setItems(lastMessage.payload);
+              setItems(remoteItems);
               setTimeout(() => { isUpdatingRef.current = false; }, 100);
             }
           }
         } catch (e) {
-          if (!isActive) break;
-          await new Promise((r) => setTimeout(r, 3000)); // Vänta 3 sek innan omstart vid nätverksfel
+          /* Tyst felhantering vid tillfälligt nätverksfel */
         }
+        // Väntar 3 sekunder innan den kollar om någon familjemedlem har blippat något nytt
+        await new Promise((r) => setTimeout(r, 3000));
       }
     };
 
-    listenForUpdates();
+    fetchUpdates();
 
     return () => {
       isActive = false;
-      controller.abort();
     };
-  }, [settings.householdId]);
+  }, [settings.householdId, items]);
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
     setItems((prev) => [
