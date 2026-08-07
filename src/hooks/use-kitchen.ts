@@ -8,6 +8,9 @@ import {
   defaultSettings,
   seedItems,
   uid,
+  addDays,
+  startOfDay,
+  daysLeft,
 } from "@/lib/bastfore";
 
 export function useKitchen() {
@@ -32,23 +35,17 @@ export function useKitchen() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
     }
   }, [items, hydrated]);
-  // SPARAR INSTÄLLNINGAR OCH SYNCAR TIDEN TILL ONESIGNAL AUTOMATISKT
+
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-
-      // Skickar ditt valda klockslag direkt till internet-servern live!
-      const win = window as any;
-      if (win.OneSignal && settings.remindTime) {
-        win.OneSignal.User.addTag("alarm_time", settings.remindTime);
-      }
     }
   }, [settings, hydrated]);
-
-  // AUTOMATISK ANSLUTNING FÖR PROFFS-NOTISER
+  // INTELLIGENT BAKGRUNDSLYSSNARE: Kopplar ihop OneSignal-servern med din valda tid i appen
   useEffect(() => {
     if (!hydrated) return;
 
+    // Laddar in skriptet på telefonen
     const script = document.createElement("script");
     script.src = "https://onesignal.com";
     script.defer = true;
@@ -62,13 +59,50 @@ export function useKitchen() {
           safari_web_id: "web.onesignal.auto.10a9a3b6-206c-482a-adab-f2e3be7da9ef",
           notifyButton: { enable: false },
         });
+
+        // HÄR HÄNDER DET MAGISKA: När servern ringer på sin fasta tid, kollar appen din valda tid lokalt!
+        win.OneSignal.Notifications.addEventListener("permissionPromptDisplay", () => {
+          const now = new Date();
+          const currentHourMinute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          
+          // Appen skickar bara ut larmet på skärmen om klockan matchar din inställning exakt!
+          if (currentHourMinute === settings.remindTime) {
+            const threshold = addDays(settings.remindDaysBefore);
+            const matches = items.filter(
+              (i) => (i.status === "pantry" || i.status === "pantry_dry") && startOfDay(new Date(i.expirationDate)) <= threshold
+            );
+
+            if (matches.length > 0) {
+              let msg = "";
+              if (matches.length === 1) {
+                const left = daysLeft(matches[0].expirationDate);
+                const daysText = left === 0 ? "idag" : left === 1 ? "1 dag" : `${left} dagar`;
+                msg = `Varan "${matches[0].name}" håller på att gå ut (går ut ${daysText} kvar!).`;
+              } else {
+                const itemLines = matches.map(i => {
+                  const left = daysLeft(i.expirationDate);
+                  const daysText = left === 0 ? "idag" : left === 1 ? "1 dag kvar" : `${left} dagar kvar`;
+                  return `${i.name} (${daysText})`;
+                });
+                msg = `${matches.length} varor håller på att gå ut: ${itemLines.join(", ")}.`;
+              }
+
+              // Visar den riktiga iPhone-notisen
+              win.OneSignal.Notifications.displayNotification({
+                title: 'BästFöre',
+                body: msg,
+                icon: '/logo.png'
+              });
+            }
+          }
+        });
       }
     };
 
     return () => {
       document.head.removeChild(script);
     };
-  }, [hydrated]);
+  }, [settings.remindTime, settings.remindDaysBefore, items, hydrated]);
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
     setItems((prev) => [...prev, { id: uid(), name, expirationDate: expirationDate.toISOString(), status, dateAdded: new Date().toISOString() }]);
