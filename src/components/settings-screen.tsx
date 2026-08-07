@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { BarChart3, Users, Copy, Check, Users2 } from "lucide-react";
+import { BarChart3, Users, Copy, Check, Users2, User, LogIn } from "lucide-react";
 import {
   type FoodItem,
   type Settings,
@@ -13,12 +13,14 @@ import {
 
 type Props = {
   items: FoodItem[];
+  members?: string[]; // Tagit emot medlemslistan från hooken
   settings: Settings;
   onChange: (s: Settings) => void;
 };
 
-export function SettingsScreen({ items, settings, onChange }: Props) {
+export function SettingsScreen({ items, members = [], settings, onChange }: Props) {
   const [toast, setToast] = useState<{ title: string; lines: string[] } | null>(null);
+  const [usernameInput, setUsernameInput] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -29,6 +31,13 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
     const rate = total > 0 ? Math.round((eaten / total) * 100) : 100;
     return { eaten, wasted, total, rate };
   }, [items]);
+
+  const handleSaveUsername = () => {
+    const cleanName = usernameInput.trim();
+    if (cleanName) {
+      onChange({ ...settings, username: cleanName });
+    }
+  };
 
   const handleCreateHousehold = () => {
     const newCode = generateHouseholdCode();
@@ -84,7 +93,6 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
       {d} {d === 1 ? "dag innan" : "dagar innan"}
     </button>
   );
-
   return (
     <div className="relative px-5 pt-10">
       <img 
@@ -96,73 +104,111 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
       <h1 className="text-4xl font-extrabold">Inställningar</h1>
       <p className="mt-1 text-sm text-muted-foreground">Statistik och hushållskonfiguration</p>
 
-      {/* NY SEKTION: SKAPA / GÅ MED I HUSHÅLL */}
-      <section className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-card">
-        <div className="flex items-center gap-2 text-primary">
-          <Users className="size-5" />
-          <h2 className="text-base font-bold">Delat hussåll</h2>
-        </div>
-
-        {settings.householdId ? (
-          // Visas om man redan har ett hushåll igång
-          <div className="mt-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Aktivt hushåll</p>
-            <div className="flex items-center justify-between rounded-2xl bg-muted p-4">
-              <span className="font-mono font-black text-foreground text-sm tracking-wide">{settings.householdId}</span>
-              <button 
-                onClick={copyToClipboard}
-                className="flex items-center gap-1 text-xs font-bold text-primary bg-background px-3 py-1.5 rounded-full border border-border shadow-sm active:scale-95 transition-all"
-              >
-                {copied ? <Check className="size-3.5 text-fresh" /> : <Copy className="size-3.5" />}
-                {copied ? "Kopierad!" : "Kopiera"}
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground leading-normal">
-              Dela koden ovan med din familj. När de klistrar in den på sina telefoner kommer era kylar och skafferier att synkas helt automatiskt!
-            </p>
-            <button 
-              onClick={handleLeaveHousehold}
-              className="mt-2 text-xs font-bold text-danger underline underline-offset-4"
+      {/* DEL 1: KONTO/ANVÄNDARNAMN */}
+      {!settings.username ? (
+        <section className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-card animate-[fade-in_0.2s_ease]">
+          <div className="flex items-center gap-2 text-primary">
+            <User className="size-5" />
+            <h2 className="text-base font-bold">Skapa användarkonto</h2>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 leading-normal">Välj ett användarnamn för att familjen ska se vem som lägger till och tar bort mat.</p>
+          <div className="mt-4 flex gap-2">
+            <input
+              value={usernameInput}
+              onChange={(e) => setUsernameInput(e.target.value)}
+              placeholder="Ditt namn (Ex: Pappa, Alex)"
+              className="flex-1 rounded-xl border border-input bg-background px-4 py-2.5 text-sm outline-none focus:border-ring"
+            />
+            <button
+              onClick={handleSaveUsername}
+              disabled={!usernameInput.trim()}
+              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-40 flex items-center gap-1 active:scale-95 transition-all"
             >
-              Lämna detta hushåll
+              <LogIn className="size-4" /> Spara
             </button>
           </div>
-        ) : (
-          // Visas om man inte har skapat eller gått med i något hushåll än
-          <div className="mt-4 space-y-4">
-            <button
-              onClick={handleCreateHousehold}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-secondary border border-border py-3.5 text-sm font-bold text-secondary-foreground shadow-sm active:scale-[0.98] transition-all"
-            >
-              <Users2 className="size-4" />
-              SKAPA HUSHÅLL
-            </button>
-
-            <div className="relative flex items-center my-2 text-xs font-bold text-muted-foreground uppercase tracking-widest before:content-[''] before:flex-1 before:border-b before:border-border before:mr-3 after:content-[''] after:flex-1 after:border-b after:border-border after:ml-3">
-              eller
+        </section>
+      ) : (
+        /* DEL 2: HUSHÅLLSSYSTEM (Visas bara om man har ett konto) */
+        <section className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-card animate-[fade-in_0.2s_ease]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-primary">
+              <Users className="size-5" />
+              <h2 className="text-base font-bold">Delat hushåll</h2>
             </div>
+            <span className="text-xs bg-muted px-2.5 py-1 rounded-full text-muted-foreground font-semibold">👤 {settings.username}</span>
+          </div>
 
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground">Gå med i befintligt hushåll</p>
-              <div className="flex gap-2">
-                <input
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
-                  placeholder="Ex: HUSHÅLL-XXXXX"
-                  className="flex-1 rounded-xl border border-input bg-background px-4 py-2.5 text-sm outline-none font-mono uppercase tracking-wide focus:border-ring"
-                />
-                <button
-                  onClick={handleJoinHousehold}
-                  disabled={!joinCode.trim()}
-                  className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-40 active:scale-95 transition-all"
+          {settings.householdId ? (
+            <div className="mt-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Aktivt hushåll</p>
+              <div className="flex items-center justify-between rounded-2xl bg-muted p-4">
+                <span className="font-mono font-black text-foreground text-sm tracking-wide">{settings.householdId}</span>
+                <button 
+                  onClick={copyToClipboard}
+                  className="flex items-center gap-1 text-xs font-bold text-primary bg-background px-3 py-1.5 rounded-full border border-border shadow-sm active:scale-95 transition-all"
                 >
-                  Gå med
+                  {copied ? <Check className="size-3.5 text-fresh" /> : <Copy className="size-3.5" />}
+                  {copied ? "Kopierad!" : "Kopiera"}
                 </button>
               </div>
+
+              {/* MEDLEMSLISTA SOM UPPDATERAS LIVE */}
+              <div className="border-t border-border pt-3 mt-2">
+                <p className="text-xs font-bold text-foreground uppercase tracking-wide">👪 Medlemmar i hushållet ({members.length})</p>
+                <ul className="mt-2 space-y-1.5">
+                  {members.map((name) => (
+                    <li key={name} className="flex items-center gap-2 text-sm font-medium text-foreground bg-background border border-border px-3 py-2 rounded-xl">
+                      <div className="w-2 h-2 rounded-full bg-fresh animate-pulse" />
+                      {name} {name === settings.username && <span className="text-[10px] text-muted-foreground font-normal">(Du)</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <button 
+                onClick={handleLeaveHousehold}
+                className="mt-4 block text-xs font-bold text-danger underline underline-offset-4"
+              >
+                Lämna detta hushåll
+              </button>
             </div>
-          </div>
-        )}
-      </section>
+          ) : (
+            <div className="mt-4 space-y-4">
+              <button
+                onClick={handleCreateHousehold}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-secondary border border-border py-3.5 text-sm font-bold text-secondary-foreground shadow-sm active:scale-[0.98] transition-all"
+              >
+                <Users2 className="size-4" />
+                SKAPA HUSHÅLL
+              </button>
+
+              <div className="relative flex items-center my-2 text-xs font-bold text-muted-foreground uppercase tracking-widest before:content-[''] before:flex-1 before:border-b before:border-border before:mr-3 after:content-[''] after:flex-1 after:border-b after:border-border after:ml-3">
+                eller
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Gå med i befintligt hushåll</p>
+                <div className="flex gap-2">
+                  <input
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value)}
+                    placeholder="Ex: HUSHÅLL-XXXXX"
+                    className="flex-1 rounded-xl border border-input bg-background px-4 py-2.5 text-sm outline-none font-mono uppercase tracking-wide focus:border-ring"
+                  />
+                  <button
+                    onClick={handleJoinHousehold}
+                    disabled={!joinCode.trim()}
+                    className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-40 active:scale-95 transition-all"
+                  >
+                    Gå med
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Spar-Statistik */}
       <section className="mt-4 rounded-3xl border border-border bg-card p-5 shadow-card">
@@ -192,7 +238,7 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
 
       {/* Inställningar för påminnelser */}
       <section className="mt-4 rounded-3xl border border-border bg-card p-5 shadow-card">
-        <h2 className="text-base font-bold">Påminn mieg från (Dagar innan)</h2>
+        <h2 className="text-base font-bold">Påminn mig från (Dagar innan)</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           {renderDayButton(1)}
           {renderDayButton(2)}
