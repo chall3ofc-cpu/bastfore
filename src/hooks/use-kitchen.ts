@@ -66,6 +66,7 @@ export function useKitchen() {
     const pollDatabase = async () => {
       while (isActive) {
         try {
+          // 1. Hämta matvaror live
           const resItems = await fetch(`https://fly.dev{cleanId}_items`);
           if (resItems.status === 200 && isActive) {
             const remoteItems = await resItems.json();
@@ -76,6 +77,7 @@ export function useKitchen() {
             }
           }
 
+          // 2. Hämta medlemslistan live (Fixad och rensad från sökvägstrubbel)
           const resKeys = await fetch(`https://fly.dev{cleanId}_member_`);
           if (resKeys.status === 200 && isActive) {
             const keys = await resKeys.json();
@@ -83,16 +85,19 @@ export function useKitchen() {
             
             if (Array.isArray(keys)) {
               for (const key of keys) {
-                const parts = key.split("_member_");
-                if (parts && parts[1]) {
-                  const name = parts[1];
-                  if (!memberNames.includes(name)) {
+                // Plockar ut allt efter _member_ oavsett vad servern lägger till framför
+                const searchStr = `${cleanId}_member_`;
+                const idx = key.indexOf(searchStr);
+                if (idx !== -1) {
+                  const name = key.substring(idx + searchStr.length);
+                  if (name && !memberNames.includes(name)) {
                     memberNames.push(name);
                   }
                 }
               }
             }
-            setMembers(memberNames);
+            // Sorterar så att du alltid ser dig själv eller medlemmarna i snygg ordning
+            setMembers(memberNames.sort());
           }
         } catch (e) {
           // Tyst felhantering
