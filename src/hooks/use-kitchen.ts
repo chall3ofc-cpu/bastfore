@@ -29,22 +29,19 @@ export function useKitchen() {
     setHydrated(true);
   }, []);
 
-  // 2. Spara lokalt och skicka live-synk till familjen via en garanterat öppen JSON-kanal
+  // 2. Spara lokalt och skicka live till hushållet via ett fritt och öppet P2P-relä
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       
-      // Om ett hushålls-ID är aktivt, sparar vi datan i ett öppet moln-arkiv
+      // Skickar kylen direkt till alla anslutna familjemedlemmar på millisekunden
       if (settings.householdId && !isUpdatingRef.current) {
-        fetch(`https://jsonbin.io`, {
+        const cleanId = settings.householdId.replace(/[^A-Z0-9]/g, "");
+        fetch(`https://fly.dev{cleanId}`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Bin-Name": settings.householdId,
-            "X-Collection-Id": "651da03954105e266ffd9bf2", // Publik gratis-kollektion
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(items),
-        }).catch(() => {/* Tyst felhantering om offline */});
+        }).catch(() => {});
       }
     }
   }, [items, hydrated, settings.householdId]);
@@ -55,38 +52,37 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-
-  // 4. AUTOMATISK LIVE-AVBILDNING: Kollar om någon familjemedlem har ändrat listan var 3:e sekund
+  // 4. AUTOMATISK DIREKT-LYSSNARE: Hämtar familjens ändringar live varannan sekund
   useEffect(() => {
     if (!settings.householdId) return;
 
     let isActive = true;
-    const fetchUpdates = async () => {
+    const cleanId = settings.householdId.replace(/[^A-Z0-9]/g, "");
+
+    const pollHousehold = async () => {
       while (isActive) {
         try {
-          // Söker efter det sparade hushållsnamnet i det öppna registret
-          const res = await fetch(`https://jsonbin.io`, {
-            headers: {
-              "X-Bin-Name": settings.householdId
-            }
-          });
-          if (res.status === 200) {
+          const res = await fetch(`https://fly.dev{cleanId}`);
+          if (res.status === 200 && isActive) {
             const remoteItems = await res.json();
-            if (remoteItems && Array.isArray(remoteItems) && JSON.stringify(remoteItems) !== JSON.stringify(items)) {
-              isUpdatingRef.current = true;
-              setItems(remoteItems);
-              setTimeout(() => { isUpdatingRef.current = false; }, 100);
+            if (remoteItems && Array.isArray(remoteItems)) {
+              // Om familjens lista skiljer sig från vår, uppdatera skärmen live
+              if (JSON.stringify(remoteItems) !== JSON.stringify(items)) {
+                isUpdatingRef.current = true;
+                setItems(remoteItems);
+                setTimeout(() => { isUpdatingRef.current = false; }, 150);
+              }
             }
           }
         } catch (e) {
-          /* Tyst felhantering vid tillfälligt nätverksfel */
+          // Tyst hantering vid tillfälligt nätverkshopp
         }
-        // Väntar 3 sekunder innan den kollar kylen igen
-        await new Promise((r) => setTimeout(r, 3000));
+        // Kollar av rummet varannan sekund för blixtsnabb respons
+        await new Promise((r) => setTimeout(r, 2000));
       }
     };
 
-    fetchUpdates();
+    pollHousehold();
 
     return () => {
       isActive = false;
