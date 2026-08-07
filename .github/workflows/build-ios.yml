@@ -3,7 +3,7 @@ name: Gratis iOS Bygge
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # Gör att du kan starta bygget manuellt om du vill
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,9 +22,10 @@ jobs:
         run: bun run build
 
       - name: Synka Capacitor
-        run: npx cap sync ios
+        run: bunx cap sync ios
 
       - name: Bygg iPhone-appen i Xcode
         run: |
+          bun install @capacitor/ios
           cd ios/App
           xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -derivedDataPath build
