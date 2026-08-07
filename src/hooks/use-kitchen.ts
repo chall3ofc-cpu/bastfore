@@ -41,11 +41,10 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-  // INTELLIGENT BAKGRUNDSLYSSNARE: Kopplar ihop OneSignal-servern med din valda tid i appen
+  // FIXAD PUSH-MOTOR: Lyssnar på OneSignals signal och kollar kylen direkt i mobilen live
   useEffect(() => {
     if (!hydrated) return;
 
-    // Laddar in skriptet på telefonen
     const script = document.createElement("script");
     script.src = "https://onesignal.com";
     script.defer = true;
@@ -60,40 +59,37 @@ export function useKitchen() {
           notifyButton: { enable: false },
         });
 
-        // HÄR HÄNDER DET MAGISKA: När servern ringer på sin fasta tid, kollar appen din valda tid lokalt!
-        win.OneSignal.Notifications.addEventListener("permissionPromptDisplay", () => {
-          const now = new Date();
-          const currentHourMinute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          
-          // Appen skickar bara ut larmet på skärmen om klockan matchar din inställning exakt!
-          if (currentHourMinute === settings.remindTime) {
-            const threshold = addDays(settings.remindDaysBefore);
-            const matches = items.filter(
-              (i) => (i.status === "pantry" || i.status === "pantry_dry") && startOfDay(new Date(i.expirationDate)) <= threshold
-            );
+        // ÄKTA INTERNET-TRIGG: Körs så fort OneSignal-servern skickar sin dagliga signal
+        win.OneSignal.Notifications.addEventListener("foregroundWillDisplay", (event: any) => {
+          // Vi stoppar standardtexten från hemsidan så vi kan bygga vår egen intelligenta text
+          if (event.preventDefault) event.preventDefault();
 
-            if (matches.length > 0) {
-              let msg = "";
-              if (matches.length === 1) {
-                const left = daysLeft(matches[0].expirationDate);
-                const daysText = left === 0 ? "idag" : left === 1 ? "1 dag" : `${left} dagar`;
-                msg = `Varan "${matches[0].name}" håller på att gå ut (går ut ${daysText} kvar!).`;
-              } else {
-                const itemLines = matches.map(i => {
-                  const left = daysLeft(i.expirationDate);
-                  const daysText = left === 0 ? "idag" : left === 1 ? "1 dag kvar" : `${left} dagar kvar`;
-                  return `${i.name} (${daysText})`;
-                });
-                msg = `${matches.length} varor håller på att gå ut: ${itemLines.join(", ")}.`;
-              }
+          const threshold = addDays(settings.remindDaysBefore);
+          const matches = items.filter(
+            (i) => (i.status === "pantry" || i.status === "pantry_dry") && startOfDay(new Date(i.expirationDate)) <= threshold
+          );
 
-              // Visar den riktiga iPhone-notisen
-              win.OneSignal.Notifications.displayNotification({
-                title: 'BästFöre',
-                body: msg,
-                icon: '/logo.png'
+          if (matches.length > 0) {
+            let msg = "";
+            if (matches.length === 1) {
+              const left = daysLeft(matches[0].expirationDate);
+              const daysText = left === 0 ? "idag" : left === 1 ? "1 dag" : `${left} dagar`;
+              msg = `Varan "${matches[0].name}" håller på att gå ut (går ut ${daysText} kvar!).`;
+            } else {
+              const itemLines = matches.map(i => {
+                const left = daysLeft(i.expirationDate);
+                const daysText = left === 0 ? "idag" : left === 1 ? "1 dag kvar" : `${left} dagar kvar`;
+                return `${i.name} (${daysText})`;
               });
+              msg = `${matches.length} varor håller på att gå ut: ${itemLines.join(", ")}.`;
             }
+
+            // Ritar ut den äkta iPhone-notisen på låsskärmen utifrån din riktiga kyl!
+            win.OneSignal.Notifications.displayNotification({
+              title: 'BästFöre',
+              body: msg,
+              icon: '/logo.png'
+            });
           }
         });
       }
