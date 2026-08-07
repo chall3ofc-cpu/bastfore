@@ -12,8 +12,6 @@ export type FoodItem = {
 export type Settings = {
   remindDaysBefore: number;
   remindTime: string;
-  householdId?: string;
-  username?: string;
 };
 
 export const STORAGE_KEY = "bastfore.items.v1";
@@ -54,7 +52,7 @@ export const urgencyOf = (iso: string): Urgency => {
 
 export const daysLabel = (iso: string) => {
   const d = daysLeft(iso);
-  if (d < 0) return d === -1 ? "Utgången sedan 1 dag!" : `Utgången sedan ${Math.abs(d)} dagar!`;
+  if (d < 0) return d === -1 ? "Utgången sedan 1 day!" : `Utgången sedan ${Math.abs(d)} dagar!`;
   if (d === 0) return "Går ut idag";
   if (d === 1) return "1 dag kvar";
   return `${d} dagar kvar`;
@@ -65,10 +63,6 @@ export const actionHint = (iso: string) => {
   if (d <= 0) return "Action krävs!";
   if (d <= 2) return "Laga något gott!";
   return "Planera in den snart";
-};
-
-export const generateHouseholdCode = () => {
-  return "HUSHÅLL-" + Math.random().toString(36).substring(2, 7).toUpperCase();
 };
 
 export const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
