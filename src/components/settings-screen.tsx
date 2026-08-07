@@ -118,24 +118,21 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
         </p>
       </section>
 
-      {/* BENHÅRD ONESIGNAL-KNAPP UTAN LÅSNINGAR */}
+      {/* SYSTEM-NOTISKNAPP SOM ALLTID TVINGAR FRAM ATT APPLE FRÅGAR OM TILLÅTELSE */}
       <div className="mt-6">
         <button
           onClick={async () => {
-            const win = window as any;
-            if (win.OneSignal) {
-              const isPushSupported = win.OneSignal.Notifications.isPushSupported();
-              if (isPushSupported) {
-                // Om användaren redan är anmäld på servern
-                const isOptedIn = win.OneSignal.Notifications.permission;
-                if (isOptedIn === "granted") {
-                  alert("ℹ️ Den här iPhonens notis-id är redan registrerat och aktivt på internet-servern!");
-                } else {
-                  // Annars öppnar vi Apples tillåtelsedialog live!
+            if ('Notification' in window) {
+              const permission = await Notification.requestPermission();
+              
+              if (permission === 'granted') {
+                const win = window as any;
+                if (win.OneSignal) {
                   await win.OneSignal.Notifications.requestPermission();
                 }
-              } else {
-                alert("⚠️ Se till att du öppnat appen sparad från hemskärmen (PWA) för att tillåta notiser!");
+                alert('✅ Riktiga systemnotiser är nu aktiverade på din iPhone!');
+              } else if (permission === 'denied') {
+                alert('❌ Notiser är blockerade i dina iPhone-inställningar. Gå till telefonens Inställningar -> Safari -> Aviseringar och slå på det för BästFöre.');
               }
             } else {
               runAlarm();
