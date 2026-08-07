@@ -12,6 +12,7 @@ export type FoodItem = {
 export type Settings = {
   remindDaysBefore: number;
   remindTime: string;
+  householdId?: string; // NYTT: Sparar hushållskoden lokalt
 };
 
 export const STORAGE_KEY = "bastfore.items.v1";
@@ -65,10 +66,15 @@ export const actionHint = (iso: string) => {
   return "Planera in den snart";
 };
 
+// Genererar slumpmässiga snygga hushållskoder (t.ex. HOUSE-XXXX)
+export const generateHouseholdCode = () => {
+  return "HUSHÅLL-" + Math.random().toString(36).substring(2, 7).toUpperCase();
+};
+
 export const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 export const defaultSettings: Settings = { remindDaysBefore: 3, remindTime: "11:00" };
 
 export const seedItems = (): FoodItem[] => {
-  return []; // Helt tom lista så att appen startar fräsch
+  return [];
 };
