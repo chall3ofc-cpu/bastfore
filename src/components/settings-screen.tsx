@@ -92,6 +92,7 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
           </div>
         </div>
       </section>
+
       {/* Inställningar för påminnelser */}
       <section className="mt-4 rounded-3xl border border-border bg-card p-5 shadow-card">
         <h2 className="text-base font-bold">Påminn mig från (Dagar innan)</h2>
@@ -104,7 +105,6 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
           {renderDayButton(7)}
         </div>
       </section>
-
       <section className="mt-4 rounded-3xl border border-border bg-card p-5 shadow-card">
         <h2 className="text-base font-bold">Tid för påminnelse</h2>
         <input
@@ -114,16 +114,43 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
           className="mt-3 w-full rounded-2xl border border-input bg-background px-4 py-3 text-2xl font-bold tabular-nums outline-none focus:border-ring"
         />
         <p className="mt-2 text-xs text-muted-foreground">
-          Alla varor buntas ihop i en enda påminnelse kl. {settings.remindTime}.
+          Alla varor buntas ihop i en påminnelse kl. {settings.remindTime}.
         </p>
       </section>
 
-      <button
-        onClick={runAlarm}
-        className="mt-6 w-full rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-card transition-transform active:scale-[0.98]"
-      >
-        🧪 Testa påminnelser direkt
-      </button>
+      {/* DUBBELKNAPP FÖR PUSH-NOTISER PÅ IPHONE */}
+      <div className="mt-6 space-y-2">
+        <button
+          onClick={() => {
+            if ('Notification' in window) {
+              Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                  alert('✅ Notiser är nu aktiverade på din iPhone!');
+                }
+              });
+            }
+          }}
+          className="w-full rounded-2xl bg-secondary border border-border py-4 text-base font-bold text-secondary-foreground shadow-sm transition-transform active:scale-[0.98]"
+        >
+          🔔 Aktivera Riktiga Notiser på mobilen
+        </button>
+
+        <button
+          onClick={() => {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({
+                action: 'PUSH_ALARM',
+                message: '🧪 Testnotis från BästFöre! Så här snyggt kommer det se ut på din skärm.'
+              });
+            } else {
+              runAlarm();
+            }
+          }}
+          className="w-full rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-card transition-transform active:scale-[0.98]"
+        >
+          🧪 Skicka en testnotis till skärmen nu
+        </button>
+      </div>
 
       {toast && (
         <div className="fixed inset-x-4 top-4 z-50 mx-auto max-w-md animate-[toast-down_0.35s_cubic-bezier(0.22,1,0.36,1)] rounded-2xl border border-border bg-popover p-4 text-popover-foreground shadow-sheet">
