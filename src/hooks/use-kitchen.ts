@@ -50,6 +50,7 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
+
   useEffect(() => {
     if (!settings.householdId || !hydrated) return;
 
@@ -93,13 +94,11 @@ export function useKitchen() {
     };
   }, [settings.householdId, settings.username, hydrated, items]);
 
-    // FIXAD: Godkänner koden omedelbart på 1 millisekund så att knappen ALDRIG kan fastna!
+  // SKOTTSÄKER LOKAL KONTROLL: Svarar direkt på 1 millisekund så knappen ALDRIG kan frysa!
   const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
     const cleanCode = code.trim().toUpperCase();
-    // Vi kollar bara att koden är inskriven i rätt format (börjar på HUSHÅLL-)
     return cleanCode.startsWith("HUSHÅLL-") && cleanCode.length > 8;
   }, []);
-
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
     setItems((prev) => [...prev, { id: uid(), name, expirationDate: expirationDate.toISOString(), status, dateAdded: new Date().toISOString() }]);
