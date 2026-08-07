@@ -1,3 +1,5 @@
+import { createClient } from "@supabase/supabase-js";
+
 export type ItemStatus = "pantry" | "freezer" | "consumed" | "pantry_dry" | "wasted";
 
 export type FoodItem = {
@@ -12,10 +14,18 @@ export type FoodItem = {
 export type Settings = {
   remindDaysBefore: number;
   remindTime: string;
+  householdId?: string;
+  username?: string;
 };
 
 export const STORAGE_KEY = "bastfore.items.v1";
 export const SETTINGS_KEY = "bastfore.settings.v1";
+
+// DIN UNIKA SUPABASE-ANSLUTNING
+const SUPABASE_URL = "https://supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJreWpldmp1YXRwdGhnZXV3andzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxMDAyNjksImV4cCI6MjEwMTY3NjI2OX0.zfDnekrsX06jJMRC4DHW55jObatbYmeGwMhB22tk0Sk";
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export const startOfDay = (d: Date) => {
   const x = new Date(d);
@@ -63,6 +73,10 @@ export const actionHint = (iso: string) => {
   if (d <= 0) return "Action krävs!";
   if (d <= 2) return "Laga något gott!";
   return "Planera in den snart";
+};
+
+export const generateHouseholdCode = () => {
+  return "HUSHÅLL-" + Math.random().toString(36).substring(2, 7).toUpperCase();
 };
 
 export const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
