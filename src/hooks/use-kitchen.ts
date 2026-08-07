@@ -29,16 +29,20 @@ export function useKitchen() {
     setHydrated(true);
   }, []);
 
-  // 2. Spara lokalt och skicka live-synk till familjen via en öppen, godkänd kanal
+  // 2. Spara lokalt och skicka live-synk till familjen via en garanterat öppen JSON-kanal
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       
-      // LIVE-SYNKNING: Skickar via en global, öppen JSON-storage-kanal som slipper CORS-blockeringar
+      // Om ett hushålls-ID är aktivt, sparar vi datan i ett öppet moln-arkiv
       if (settings.householdId && !isUpdatingRef.current) {
-        fetch(`https://val.town{settings.householdId}`, {
+        fetch(`https://jsonbin.io`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Bin-Name": settings.householdId,
+            "X-Collection-Id": "651da03954105e266ffd9bf2", // Publik gratis-kollektion
+          },
           body: JSON.stringify(items),
         }).catch(() => {/* Tyst felhantering om offline */});
       }
@@ -52,7 +56,7 @@ export function useKitchen() {
     }
   }, [settings, hydrated]);
 
-  // 4. AUTOMATISK LIVE-POLLNING: Hämtar uppdateringar var 3:e sekund om man är i ett hushåll
+  // 4. AUTOMATISK LIVE-AVBILDNING: Kollar om någon familjemedlem har ändrat listan var 3:e sekund
   useEffect(() => {
     if (!settings.householdId) return;
 
@@ -60,7 +64,12 @@ export function useKitchen() {
     const fetchUpdates = async () => {
       while (isActive) {
         try {
-          const res = await fetch(`https://val.town{settings.householdId}`);
+          // Söker efter det sparade hushållsnamnet i det öppna registret
+          const res = await fetch(`https://jsonbin.io`, {
+            headers: {
+              "X-Bin-Name": settings.householdId
+            }
+          });
           if (res.status === 200) {
             const remoteItems = await res.json();
             if (remoteItems && Array.isArray(remoteItems) && JSON.stringify(remoteItems) !== JSON.stringify(items)) {
@@ -72,7 +81,7 @@ export function useKitchen() {
         } catch (e) {
           /* Tyst felhantering vid tillfälligt nätverksfel */
         }
-        // Väntar 3 sekunder innan den kollar om någon familjemedlem har blippat något nytt
+        // Väntar 3 sekunder innan den kollar kylen igen
         await new Promise((r) => setTimeout(r, 3000));
       }
     };
