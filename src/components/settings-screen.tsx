@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { BarChart3, Users, Copy, Check, Users2, User, LogIn } from "lucide-react";
+import { BarChart3, Users, Copy, Check, Users2, User, LogIn, AlertCircle } from "lucide-react";
 import {
   type FoodItem,
   type Settings,
@@ -13,16 +13,18 @@ import {
 
 type Props = {
   items: FoodItem[];
-  members?: string[]; // Tagit emot medlemslistan från hooken
+  members?: string[];
+  verifyHousehold: (code: string) => Promise<boolean>;
   settings: Settings;
   onChange: (s: Settings) => void;
 };
-
-export function SettingsScreen({ items, members = [], settings, onChange }: Props) {
+export function SettingsScreen({ items, members = [], verifyHousehold, settings, onChange }: Props) {
   const [toast, setToast] = useState<{ title: string; lines: string[] } | null>(null);
   const [usernameInput, setUsernameInput] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [copied, setCopied] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const stats = useMemo(() => {
     const eaten = items.filter((i) => i.status === "consumed").length;
@@ -42,20 +44,34 @@ export function SettingsScreen({ items, members = [], settings, onChange }: Prop
   const handleCreateHousehold = () => {
     const newCode = generateHouseholdCode();
     onChange({ ...settings, householdId: newCode });
+    setErrorMsg(null);
   };
 
-  const handleJoinHousehold = () => {
+  const handleJoinHousehold = async () => {
     const cleanCode = joinCode.trim().toUpperCase();
-    if (cleanCode.startsWith("HUSHÅLL-")) {
+    setErrorMsg(null);
+
+    if (!cleanCode.startsWith("HUSHÅLL-")) {
+      setErrorMsg("Koden måste börja med HUSHÅLL-");
+      return;
+    }
+
+    setIsVerifying(true);
+    const exists = await verifyHousehold(cleanCode);
+    setIsVerifying(false);
+
+    if (exists) {
       onChange({ ...settings, householdId: cleanCode });
       setJoinCode("");
+    } else {
+      setErrorMsg("Hushållet hittades inte. Kontrollera koden!");
     }
   };
 
   const handleLeaveHousehold = () => {
     onChange({ ...settings, householdId: undefined });
+    setErrorMsg(null);
   };
-
   const copyToClipboard = () => {
     if (settings.householdId) {
       navigator.clipboard.writeText(settings.householdId);
@@ -93,6 +109,7 @@ export function SettingsScreen({ items, members = [], settings, onChange }: Prop
       {d} {d === 1 ? "dag innan" : "dagar innan"}
     </button>
   );
+
   return (
     <div className="relative px-5 pt-10">
       <img 
@@ -104,9 +121,8 @@ export function SettingsScreen({ items, members = [], settings, onChange }: Prop
       <h1 className="text-4xl font-extrabold">Inställningar</h1>
       <p className="mt-1 text-sm text-muted-foreground">Statistik och hushållskonfiguration</p>
 
-      {/* DEL 1: KONTO/ANVÄNDARNAMN */}
       {!settings.username ? (
-        <section className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-card animate-[fade-in_0.2s_ease]">
+        <section className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-card">
           <div className="flex items-center gap-2 text-primary">
             <User className="size-5" />
             <h2 className="text-base font-bold">Skapa användarkonto</h2>
@@ -129,8 +145,7 @@ export function SettingsScreen({ items, members = [], settings, onChange }: Prop
           </div>
         </section>
       ) : (
-        /* DEL 2: HUSHÅLLSSYSTEM (Visas bara om man har ett konto) */
-        <section className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-card animate-[fade-in_0.2s_ease]">
+        <section className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-card">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-primary">
               <Users className="size-5" />
@@ -153,7 +168,6 @@ export function SettingsScreen({ items, members = [], settings, onChange }: Prop
                 </button>
               </div>
 
-              {/* MEDLEMSLISTA SOM UPPDATERAS LIVE */}
               <div className="border-t border-border pt-3 mt-2">
                 <p className="text-xs font-bold text-foreground uppercase tracking-wide">👪 Medlemmar i hushållet ({members.length})</p>
                 <ul className="mt-2 space-y-1.5">
@@ -193,24 +207,30 @@ export function SettingsScreen({ items, members = [], settings, onChange }: Prop
                   <input
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value)}
+                    disabled={isVerifying}
                     placeholder="Ex: HUSHÅLL-XXXXX"
-                    className="flex-1 rounded-xl border border-input bg-background px-4 py-2.5 text-sm outline-none font-mono uppercase tracking-wide focus:border-ring"
+                    className="flex-1 rounded-xl border border-input bg-background px-4 py-2.5 text-sm outline-none font-mono uppercase tracking-wide focus:border-ring disabled:opacity-50"
                   />
                   <button
                     onClick={handleJoinHousehold}
-                    disabled={!joinCode.trim()}
-                    className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-40 active:scale-95 transition-all"
+                    disabled={!joinCode.trim() || isVerifying}
+                    className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-40 active:scale-95 transition-all min-w-[80px]"
                   >
-                    Gå med
+                    {isVerifying ? "Kollar..." : "Gå med"}
                   </button>
                 </div>
+                
+                {errorMsg && (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-danger bg-danger-bg border border-danger-border px-3 py-2 rounded-xl mt-2">
+                    <AlertCircle className="size-3.5" />
+                    {errorMsg}
+                  </div>
+                )}
               </div>
             </div>
           )}
         </section>
       )}
-
-      {/* Spar-Statistik */}
       <section className="mt-4 rounded-3xl border border-border bg-card p-5 shadow-card">
         <div className="flex items-center gap-2 text-primary">
           <BarChart3 className="size-5" />
@@ -236,7 +256,6 @@ export function SettingsScreen({ items, members = [], settings, onChange }: Prop
         </div>
       </section>
 
-      {/* Inställningar för påminnelser */}
       <section className="mt-4 rounded-3xl border border-border bg-card p-5 shadow-card">
         <h2 className="text-base font-bold">Påminn mig från (Dagar innan)</h2>
         <div className="mt-3 flex flex-wrap gap-2">
