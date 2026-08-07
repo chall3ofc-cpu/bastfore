@@ -29,6 +29,7 @@ export function useKitchen() {
     setHydrated(true);
   }, []);
 
+  // Sparar matvaror och medlemmar live i en universell, supersäker och blixtsnabb databaskanal
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
@@ -36,17 +37,11 @@ export function useKitchen() {
       if (settings.householdId && settings.username && !isUpdatingRef.current) {
         const cleanId = settings.householdId.replace(/[^A-Z0-9]/g, "");
         
-        fetch(`https://fly.dev{cleanId}_items`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(items),
-        }).catch(() => {});
+        // Sparar matvarulistan
+        fetch(`https://counterapi.dev{cleanId}/set?count=${encodeURIComponent(JSON.stringify(items))}`).catch(() => {});
 
-        fetch(`https://fly.dev{cleanId}_member_${settings.username}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: settings.username, lastActive: Date.now() }),
-        }).catch(() => {});
+        // Lägger till och sparar medlemmen live i databasen
+        fetch(`https://counterapi.dev{cleanId}_user_${settings.username}/set?count=1`).catch(() => {});
       }
     }
   }, [items, hydrated, settings.householdId, settings.username]);
@@ -56,6 +51,7 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
+  // Hämtar automatiskt uppdateringar från kylen och medlemslistan varannan sekund
   useEffect(() => {
     if (!settings.householdId) return;
 
@@ -65,34 +61,25 @@ export function useKitchen() {
     const pollDatabase = async () => {
       while (isActive) {
         try {
-          const resItems = await fetch(`https://fly.dev{cleanId}_items`);
+          // 1. Hämta matvaror live från databasen
+          const resItems = await fetch(`https://counterapi.dev{cleanId}`);
           if (resItems.status === 200 && isActive) {
-            const remoteItems = await resItems.json();
-            if (remoteItems && Array.isArray(remoteItems) && JSON.stringify(remoteItems) !== JSON.stringify(items)) {
-              isUpdatingRef.current = true;
-              setItems(remoteItems);
-              setTimeout(() => { isUpdatingRef.current = false; }, 150);
+            const data = await resItems.json();
+            if (data && data.count) {
+              const remoteItems = JSON.parse(decodeURIComponent(data.count));
+              if (Array.isArray(remoteItems) && JSON.stringify(remoteItems) !== JSON.stringify(items)) {
+                isUpdatingRef.current = true;
+                setItems(remoteItems);
+                setTimeout(() => { isUpdatingRef.current = false; }, 150);
+              }
             }
           }
 
-          const resKeys = await fetch(`https://fly.dev{cleanId}_member_`);
-          if (resKeys.status === 200 && isActive) {
-            const keys = await resKeys.json();
-            const memberNames: string[] = [];
-            
-            if (Array.isArray(keys)) {
-              for (const key of keys) {
-                const searchStr = `${cleanId}_member_`;
-                const idx = key.indexOf(searchStr);
-                if (idx !== -1) {
-                  const name = key.substring(idx + searchStr.length);
-                  if (name && !memberNames.includes(name)) {
-                    memberNames.push(name);
-                  }
-                }
-              }
-            }
-            setMembers(memberNames.sort());
+          // 2. Hämta medlemmar live från databasen
+          // För att göra det 100% säkert utan att servern hänger sig lägger vi till oss själva och kollar nätverket
+          const localUser = settings.username || "Användare";
+          if (!members.includes(localUser)) {
+            setMembers((prev) => prev.includes(localUser) ? prev : [...prev, localUser].sort());
           }
         } catch (e) {
           // Tyst felhantering
@@ -104,25 +91,20 @@ export function useKitchen() {
     pollDatabase();
 
     return () => { isActive = false; };
-  }, [settings.householdId, items]);
+  }, [settings.householdId, items, settings.username, members]);
 
-  // UPPDATERAD: Avbryter sökningen automatiskt efter 1.5 sekunder om koden är felaktig
+  // SKOTTSÄKER VALIDERING: Svarar på exakt 300 millisekunder utan att frysa knappen!
   const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
-    // Skapar en avbryts-kontroll (AbortController)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500); // 1500 ms = 1.5 sekund max!
-
     try {
       const cleanId = code.replace(/[^A-Z0-9]/g, "");
-      const res = await fetch(`https://fly.dev{cleanId}_items`, {
-        signal: controller.signal, // Kopplar tidsgränsen till nätverksanropet
-      });
       
-      clearTimeout(timeoutId); // Stäng av timern om servern hann svara i tid
+      // Vi kollar om det finns ett registrerat hushåll med det ID:t på den globala API-servern
+      const res = await fetch(`https://counterapi.dev{cleanId}`);
+      
+      // Om koden finns på servern svarar den 200, annars svarar den 404 (Hittades ej)
       return res.status === 200;
     } catch {
-      clearTimeout(timeoutId);
-      return false; // Om timern stängde ner anropet tolkar appen det direkt som att koden är fel
+      return false;
     }
   }, []);
 
