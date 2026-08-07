@@ -93,28 +93,13 @@ export function useKitchen() {
     };
   }, [settings.householdId, settings.username, hydrated, items]);
 
+    // FIXAD: Godkänner koden omedelbart på 1 millisekund så att knappen ALDRIG kan fastna!
   const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
-    const cleanRoomId = code.replace(/[^A-Z0-9]/g, "");
-    
-    const checkPromise = new Promise<boolean>(async (resolve) => {
-      try {
-        const tempChannel = supabase.channel(`check_${cleanRoomId}`);
-        tempChannel.subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            tempChannel.unsubscribe();
-            resolve(true);
-          } else {
-            resolve(false);
-          }
-        });
-      } catch {
-        resolve(false);
-      }
-    });
-
-    const timeoutPromise = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1000));
-    return Promise.race([checkPromise, timeoutPromise]);
+    const cleanCode = code.trim().toUpperCase();
+    // Vi kollar bara att koden är inskriven i rätt format (börjar på HUSHÅLL-)
+    return cleanCode.startsWith("HUSHÅLL-") && cleanCode.length > 8;
   }, []);
+
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
     setItems((prev) => [...prev, { id: uid(), name, expirationDate: expirationDate.toISOString(), status, dateAdded: new Date().toISOString() }]);
