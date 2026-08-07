@@ -10,7 +10,7 @@ import {
   uid,
   addDays,
   startOfDay,
-  daysLabel,
+  daysLeft,
 } from "@/lib/bastfore";
 
 export function useKitchen() {
@@ -41,11 +41,10 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-  // NYTT: AUTOMATISKT PUSH-LARM SOM KOLLAR KLOCKAN I BAKGRUNDEN
+  // FIXAD PUSH-NOTISTEXT: Bygger nu texten med exakt varunamn och dagar kvar
   useEffect(() => {
     if (!hydrated) return;
 
-    // Registrera bakgrundsarbetaren (Service Worker) i webbläsaren
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
@@ -54,7 +53,6 @@ export function useKitchen() {
       const now = new Date();
       const currentHourMinute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       
-      // Om klockan är exakt den tid användaren har valt i inställningar, bygg notisen
       if (currentHourMinute === settings.remindTime) {
         const threshold = addDays(settings.remindDaysBefore);
         const matches = items.filter(
@@ -62,11 +60,22 @@ export function useKitchen() {
         );
 
         if (matches.length > 0 && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          const msg = matches.length === 1 
-            ? `1 vara (${matches[0].name}) håller på att gå ut!` 
-            : `${matches.length} varor håller på att gå ut! Öppna köket för att se listan.`;
+          let msg = "";
           
-          // Skicka kommandot till sw.js att tända telefonskärmen
+          if (matches.length === 1) {
+            const left = daysLeft(matches[0].expirationDate);
+            const daysText = left === 0 ? "idag" : left === 1 ? "1 dag" : `${left} dagar`;
+            msg = `Varan "${matches[0].name}" håller på att gå ut (går ut ${daysText} kvar!).`;
+          } else {
+            // Om det är flera varor bygger vi en snygg lista i samma notis
+            const itemLines = matches.map(i => {
+              const left = daysLeft(i.expirationDate);
+              const daysText = left === 0 ? "idag" : left === 1 ? "1 dag kvar" : `${left} dagar kvar`;
+              return `${i.name} (${daysText})`;
+            });
+            msg = `${matches.length} varor håller på att gå ut: ${itemLines.join(", ")}.`;
+          }
+          
           navigator.serviceWorker.controller.postMessage({
             action: 'PUSH_ALARM',
             message: msg
@@ -75,7 +84,6 @@ export function useKitchen() {
       }
     };
 
-    // Kollar klockan en gång i minuten i tysthet
     const interval = setInterval(checkTimeAndTriggerPush, 60000);
     return () => clearInterval(interval);
   }, [settings.remindTime, settings.remindDaysBefore, items, hydrated]);
