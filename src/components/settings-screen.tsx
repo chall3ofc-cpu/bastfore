@@ -8,18 +8,18 @@ import {
   addDays,
   daysLabel,
   startOfDay,
-  generateHouseholdCode,
 } from "@/lib/bastfore";
 
 type Props = {
   items: FoodItem[];
   members?: string[];
   verifyHousehold: (code: string) => Promise<boolean>;
+  createHouseholdAction: () => Promise<void>;
   settings: Settings;
   onChange: (s: Settings) => void;
 };
 
-export function SettingsScreen({ items, members = [], verifyHousehold, settings, onChange }: Props) {
+export function SettingsScreen({ items, members = [], verifyHousehold, createHouseholdAction, settings, onChange }: Props) {
   const [toast, setToast] = useState<{ title: string; lines: string[] } | null>(null);
   const [usernameInput, setUsernameInput] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -43,8 +43,7 @@ export function SettingsScreen({ items, members = [], verifyHousehold, settings,
   };
 
   const handleCreateHousehold = () => {
-    const newCode = generateHouseholdCode();
-    onChange({ ...settings, householdId: newCode });
+    createHouseholdAction();
     setErrorMsg(null);
   };
 
