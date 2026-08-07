@@ -50,14 +50,12 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-  // UPPDATERAD LIVE-SPÅRNING: Lägger till skaparen direkt och lyssnar efter familjen live
   useEffect(() => {
     if (!settings.householdId || !hydrated) return;
 
     const cleanRoomId = settings.householdId.replace(/[^A-Z0-9]/g, "");
     const localUser = settings.username || "Okänd Användare";
     
-    // Sätter dig själv som startmedlem direkt så det aldrig står 0
     setMembers([localUser]);
 
     const channel = supabase.channel(`room_${cleanRoomId}`, {
@@ -77,19 +75,15 @@ export function useKitchen() {
       }
     });
 
-    // Uppdaterar medlemslistan live så fort någon ansluter eller lämnar
     channel.on("presence", { event: "sync" }, () => {
       const state = channel.presenceState();
       const currentMembers = Object.keys(state);
-      
-      // Säkerställer att ditt eget namn ALLTID är med, plus alla unika externa medlemmar
       const uniqueMembers = Array.from(new Set([localUser, ...currentMembers]));
       setMembers(uniqueMembers.sort());
     });
 
     channel.subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
-        // Skickar upp ditt namn till Supabase-servern live
         await channel.track({ online_at: new Date().toISOString() });
         channel.send({ type: "broadcast", event: "request_sync", payload: {} });
       }
@@ -107,9 +101,28 @@ export function useKitchen() {
     };
   }, [settings.householdId, settings.username, hydrated, items]);
 
+  const createHouseholdAction = useCallback(async () => {
+    const newCode = "HUSHÅLL-" + Math.random().toString(36).substring(2, 7).toUpperCase();
+    try {
+      await supabase.from("households").insert([{ id: newCode }]);
+      setSettings((prev) => ({ ...prev, householdId: newCode }));
+    } catch (e) {}
+  }, []);
+
   const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
     const cleanCode = code.trim().toUpperCase();
-    return cleanCode.startsWith("HUSHÅLL-") && cleanCode.length > 8;
+    if (!cleanCode.startsWith("HUSHÅLL-") || cleanCode.length < 9) return false;
+    
+    try {
+      const { data, error } = await supabase
+        .from("households")
+        .select("id")
+        .eq("id", cleanCode);
+        
+      return !error && data && data.length > 0;
+    } catch {
+      return false;
+    }
   }, []);
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
@@ -128,5 +141,5 @@ export function useKitchen() {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, name } : i)));
   }, []);
 
-  return { items, members, verifyHousehold, addItem, setStatus, setExpiration, setName, settings, setSettings, hydrated };
+  return { items, members, verifyHousehold, createHouseholdAction, addItem, setStatus, setExpiration, setName, settings, setSettings, hydrated };
 }
