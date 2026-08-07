@@ -8,9 +8,6 @@ import {
   defaultSettings,
   seedItems,
   uid,
-  addDays,
-  startOfDay,
-  daysLeft,
 } from "@/lib/bastfore";
 
 export function useKitchen() {
@@ -41,58 +38,37 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-  // FIXAD PUSH-NOTISTEXT: Bygger nu texten med exakt varunamn och dagar kvar
+  // ONESIGNAL AUTOMATISK ANSLUTNING FOR PROFFS-NOTISER
   useEffect(() => {
     if (!hydrated) return;
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
+    // Laddar in OneSignals officiella molnskript direkt i din iPhones webbläsare
+    const script = document.createElement("script");
+    script.src = "https://onesignal.com";
+    script.defer = true;
+    document.head.appendChild(script);
 
-    const checkTimeAndTriggerPush = () => {
-      const now = new Date();
-      const currentHourMinute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
-      if (currentHourMinute === settings.remindTime) {
-        const threshold = addDays(settings.remindDaysBefore);
-        const matches = items.filter(
-          (i) => (i.status === "pantry" || i.status === "pantry_dry") && startOfDay(new Date(i.expirationDate)) <= threshold
-        );
-
-        if (matches.length > 0 && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          let msg = "";
-          
-          if (matches.length === 1) {
-            const left = daysLeft(matches[0].expirationDate);
-            const daysText = left === 0 ? "idag" : left === 1 ? "1 dag" : `${left} dagar`;
-            msg = `Varan "${matches[0].name}" håller på att gå ut (går ut ${daysText} kvar!).`;
-          } else {
-            // Om det är flera varor bygger vi en snygg lista i samma notis
-            const itemLines = matches.map(i => {
-              const left = daysLeft(i.expirationDate);
-              const daysText = left === 0 ? "idag" : left === 1 ? "1 dag kvar" : `${left} dagar kvar`;
-              return `${i.name} (${daysText})`;
-            });
-            msg = `${matches.length} varor håller på att gå ut: ${itemLines.join(", ")}.`;
-          }
-          
-          navigator.serviceWorker.controller.postMessage({
-            action: 'PUSH_ALARM',
-            message: msg
-          });
-        }
+    script.onload = () => {
+      const win = window as any;
+      if (win.OneSignal) {
+        win.OneSignal.init({
+          appId: "d2824bbb-17fb-4cd3-99d6-20657ce5e746", // Din unika app-nyckel
+          safari_web_id: "web.onesignal.auto.10a9a3b6-206c-482a-adab-f2e3be7da9ef",
+          notifyButton: { enable: false },
+        });
       }
     };
 
-    const interval = setInterval(checkTimeAndTriggerPush, 60000);
-    return () => clearInterval(interval);
-  }, [settings.remindTime, settings.remindDaysBefore, items, hydrated]);
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, [hydrated]);
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
     setItems((prev) => [...prev, { id: uid(), name, expirationDate: expirationDate.toISOString(), status, dateAdded: new Date().toISOString() }]);
   }, []);
 
-  const setStatus = useCallback((id: string, status: ItemStatus, previousStatus?: "pantry" | "pantry_dry") => {
+  const setStatus = useCallback((id: string, status: ItemStatus, previousStatus?: "pantry_dry" | "pantry") => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status, ...(previousStatus ? { previousStatus } : {}) } : i)));
   }, []);
 
