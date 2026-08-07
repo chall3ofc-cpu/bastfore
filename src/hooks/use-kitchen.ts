@@ -32,17 +32,23 @@ export function useKitchen() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
     }
   }, [items, hydrated]);
-
+  // SPARAR INSTÄLLNINGAR OCH SYNCAR TIDEN TILL ONESIGNAL AUTOMATISKT
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+
+      // Skickar ditt valda klockslag direkt till internet-servern live!
+      const win = window as any;
+      if (win.OneSignal && settings.remindTime) {
+        win.OneSignal.User.addTag("alarm_time", settings.remindTime);
+      }
     }
   }, [settings, hydrated]);
-  // ONESIGNAL AUTOMATISK ANSLUTNING FOR PROFFS-NOTISER
+
+  // AUTOMATISK ANSLUTNING FÖR PROFFS-NOTISER
   useEffect(() => {
     if (!hydrated) return;
 
-    // Laddar in OneSignals officiella molnskript direkt i din iPhones webbläsare
     const script = document.createElement("script");
     script.src = "https://onesignal.com";
     script.defer = true;
@@ -52,7 +58,7 @@ export function useKitchen() {
       const win = window as any;
       if (win.OneSignal) {
         win.OneSignal.init({
-          appId: "d2824bbb-17fb-4cd3-99d6-20657ce5e746", // Din unika app-nyckel
+          appId: "d2824bbb-17fb-4cd3-99d6-20657ce5e746",
           safari_web_id: "web.onesignal.auto.10a9a3b6-206c-482a-adab-f2e3be7da9ef",
           notifyButton: { enable: false },
         });
