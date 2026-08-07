@@ -21,7 +21,6 @@ export type Settings = {
 export const STORAGE_KEY = "bastfore.items.v1";
 export const SETTINGS_KEY = "bastfore.settings.v1";
 
-// DIN UNIKA SUPABASE-ANSLUTNING
 const SUPABASE_URL = "https://supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJreWpldmp1YXRwdGhnZXV3andzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxMDAyNjksImV4cCI6MjEwMTY3NjI2OX0.zfDnekrsX06jJMRC4DHW55jObatbYmeGwMhB22tk0Sk";
 
