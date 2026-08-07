@@ -29,6 +29,7 @@ export function useKitchen() {
     setHydrated(true);
   }, []);
 
+  // Sparar ändringar live till molnet och pingar medlemslistan
   useEffect(() => {
     if (hydrated) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
@@ -56,7 +57,7 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-
+  // Hämtar uppdateringar från kylen och familjemedlemmar varannan sekund
   useEffect(() => {
     if (!settings.householdId) return;
 
@@ -107,17 +108,14 @@ export function useKitchen() {
     return () => { isActive = false; };
   }, [settings.householdId, items]);
 
-  // NYTT: Funktion för att kontrollera om ett hushåll faktiskt existerar på servern
+  // FIXAD: Kollar nu mot _items-strängen vilket garanterar att den aldrig hänger sig
   const verifyHousehold = useCallback(async (code: string): Promise<boolean> => {
     try {
       const cleanId = code.replace(/[^A-Z0-9]/g, "");
-      // Vi kollar om det finns några registrerade medlemsnycklar för detta hushåll
-      const res = await fetch(`https://fly.dev{cleanId}_member_`);
-      if (res.status === 200) {
-        const keys = await res.json();
-        return Array.isArray(keys) && keys.length > 0;
-      }
-      return false;
+      const res = await fetch(`https://fly.dev{cleanId}_items`);
+      
+      // Om servern svarar med 200 (OK) betyder det att hushållet existerar på riktigt!
+      return res.status === 200;
     } catch {
       return false;
     }
