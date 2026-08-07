@@ -118,8 +118,8 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
         </p>
       </section>
 
-      {/* DUBBELKNAPP FÖR PUSH-NOTISER PÅ IPHONE */}
-      <div className="mt-6 space-y-2">
+      {/* REN OCH SNYGG AKTIVERINGSKNAPP UTAN TESTKNAPP */}
+      <div className="mt-6">
         <button
           onClick={() => {
             if ('Notification' in window) {
@@ -130,25 +130,9 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
               });
             }
           }}
-          className="w-full rounded-2xl bg-secondary border border-border py-4 text-base font-bold text-secondary-foreground shadow-sm transition-transform active:scale-[0.98]"
-        >
-          🔔 Aktivera Riktiga Notiser på mobilen
-        </button>
-
-        <button
-          onClick={() => {
-            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-              navigator.serviceWorker.controller.postMessage({
-                action: 'PUSH_ALARM',
-                message: '🧪 Testnotis från BästFöre! Så här snyggt kommer det se ut på din skärm.'
-              });
-            } else {
-              runAlarm();
-            }
-          }}
           className="w-full rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-card transition-transform active:scale-[0.98]"
         >
-          🧪 Skicka en testnotis till skärmen nu
+          🔔 Aktivera Riktiga Notiser på mobilen
         </button>
       </div>
 
