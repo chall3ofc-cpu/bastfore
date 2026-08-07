@@ -118,16 +118,22 @@ export function SettingsScreen({ items, settings, onChange }: Props) {
         </p>
       </section>
 
-      {/* REN OCH SNYGG AKTIVERINGSKNAPP UTAN TESTKNAPP */}
+      {/* UPPDATERAD NOTISKNAPP SOM KÄNNER AV OM DET REDAN ÄR AKTIVERAT */}
       <div className="mt-6">
         <button
           onClick={() => {
             if ('Notification' in window) {
-              Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                  alert('✅ Notiser är nu aktiverade på din iPhone!');
-                }
-              });
+              // Om statusen REDAN är granted (godkänd)
+              if (Notification.permission === 'granted') {
+                alert('ℹ️ Notiser är redan aktiverade för BästFöre på den här telefonen!');
+              } else {
+                // Annars ber vi om lov som vanligt
+                Notification.requestPermission().then(permission => {
+                  if (permission === 'granted') {
+                    alert('✅ Notiser är nu aktiverade på din iPhone!');
+                  }
+                });
+              }
             }
           }}
           className="w-full rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-card transition-transform active:scale-[0.98]"
