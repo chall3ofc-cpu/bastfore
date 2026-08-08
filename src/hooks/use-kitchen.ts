@@ -10,7 +10,6 @@ import {
   uid,
   addDays,
   startOfDay,
-  daysLeft,
 } from "@/lib/bastfore";
 
 export function useKitchen() {
@@ -41,52 +40,26 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-  // DEN FUNGERANDE KLOCKAN: Kollar din valda tid och bygger din nya snygga text live!
+  // COOLA GENVÄGS-KOPPLINGEN: Svarar din iPhone om det finns utgångna varor just nu
   useEffect(() => {
     if (!hydrated) return;
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
-
-    const checkTimeAndTriggerPush = () => {
-      const now = new Date();
-      const currentHourMinute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
-      if (currentHourMinute === settings.remindTime) {
+    // Vi skapar en dold lyssnare i webbläsaren som din iPhone-genväg kan ropa på
+    const handleShortcutRequest = (event: MessageEvent) => {
+      if (event.data && event.data.action === "GET_URGENT_COUNT") {
         const threshold = addDays(settings.remindDaysBefore);
         const matches = items.filter(
           (i) => (i.status === "pantry" || i.status === "pantry_dry") && startOfDay(new Date(i.expirationDate)) <= threshold
         );
-
-        if (matches.length > 0 && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-          let msg = "";
-          
-          // DIN NYA TEXTÄNDRING: Skriver ut exakt namn och dagar kvar!
-          if (matches.length === 1) {
-            const left = daysLeft(matches[0].expirationDate);
-            const daysText = left === 0 ? "idag" : left === 1 ? "1 dag" : `${left} dagar`;
-            msg = `Varan "${matches[0].name}" håller på att gå ut (det är ${daysText} kvar).`;
-          } else {
-            const itemLines = matches.map(i => {
-              const left = daysLeft(i.expirationDate);
-              const daysText = left === 0 ? "idag" : left === 1 ? "1 dag kvar" : `${left} dagar kvar`;
-              return `${i.name} (${daysText})`;
-            });
-            msg = `${matches.length} varor håller på att gå ut: ${itemLines.join(", ")}.`;
-          }
-          
-          navigator.serviceWorker.controller.postMessage({
-            action: 'PUSH_ALARM',
-            message: msg
-          });
-        }
+        
+        // Vi skickar tillbaka exakt hur många varor som är akuta just nu
+        window.parent.postMessage({ action: "URGENT_COUNT_REPLY", count: matches.length }, "*");
       }
     };
 
-    const interval = setInterval(checkTimeAndTriggerPush, 60000);
-    return () => clearInterval(interval);
-  }, [settings.remindTime, settings.remindDaysBefore, items, hydrated]);
+    window.addEventListener("message", handleShortcutRequest);
+    return () => window.removeEventListener("message", handleShortcutRequest);
+  }, [items, settings.remindDaysBefore, hydrated]);
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
     setItems((prev) => [...prev, { id: uid(), name, expirationDate: expirationDate.toISOString(), status, dateAdded: new Date().toISOString() }]);
