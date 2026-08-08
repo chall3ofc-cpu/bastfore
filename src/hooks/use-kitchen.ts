@@ -41,63 +41,51 @@ export function useKitchen() {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }
   }, [settings, hydrated]);
-  // FIXAD PUSH-MOTOR: Lyssnar på OneSignals signal och kollar kylen direkt i mobilen live
+  // DEN FUNGERANDE KLOCKAN: Kollar din valda tid och bygger din nya snygga text live!
   useEffect(() => {
     if (!hydrated) return;
 
-    const script = document.createElement("script");
-    script.src = "https://onesignal.com";
-    script.defer = true;
-    document.head.appendChild(script);
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
 
-    script.onload = () => {
-      const win = window as any;
-      if (win.OneSignal) {
-        win.OneSignal.init({
-          appId: "d2824bbb-17fb-4cd3-99d6-20657ce5e746",
-          safari_web_id: "web.onesignal.auto.10a9a3b6-206c-482a-adab-f2e3be7da9ef",
-          notifyButton: { enable: false },
-        });
+    const checkTimeAndTriggerPush = () => {
+      const now = new Date();
+      const currentHourMinute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
+      if (currentHourMinute === settings.remindTime) {
+        const threshold = addDays(settings.remindDaysBefore);
+        const matches = items.filter(
+          (i) => (i.status === "pantry" || i.status === "pantry_dry") && startOfDay(new Date(i.expirationDate)) <= threshold
+        );
 
-        // ÄKTA INTERNET-TRIGG: Körs så fort OneSignal-servern skickar sin dagliga signal
-        win.OneSignal.Notifications.addEventListener("foregroundWillDisplay", (event: any) => {
-          // Vi stoppar standardtexten från hemsidan så vi kan bygga vår egen intelligenta text
-          if (event.preventDefault) event.preventDefault();
-
-          const threshold = addDays(settings.remindDaysBefore);
-          const matches = items.filter(
-            (i) => (i.status === "pantry" || i.status === "pantry_dry") && startOfDay(new Date(i.expirationDate)) <= threshold
-          );
-
-          if (matches.length > 0) {
-            let msg = "";
-            if (matches.length === 1) {
-              const left = daysLeft(matches[0].expirationDate);
-              const daysText = left === 0 ? "idag" : left === 1 ? "1 dag" : `${left} dagar`;
-              msg = `Varan "${matches[0].name}" håller på att gå ut (går ut ${daysText} kvar!).`;
-            } else {
-              const itemLines = matches.map(i => {
-                const left = daysLeft(i.expirationDate);
-                const daysText = left === 0 ? "idag" : left === 1 ? "1 dag kvar" : `${left} dagar kvar`;
-                return `${i.name} (${daysText})`;
-              });
-              msg = `${matches.length} varor håller på att gå ut: ${itemLines.join(", ")}.`;
-            }
-
-            // Ritar ut den äkta iPhone-notisen på låsskärmen utifrån din riktiga kyl!
-            win.OneSignal.Notifications.displayNotification({
-              title: 'BästFöre',
-              body: msg,
-              icon: '/logo.png'
+        if (matches.length > 0 && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          let msg = "";
+          
+          // DIN NYA TEXTÄNDRING: Skriver ut exakt namn och dagar kvar!
+          if (matches.length === 1) {
+            const left = daysLeft(matches[0].expirationDate);
+            const daysText = left === 0 ? "idag" : left === 1 ? "1 dag" : `${left} dagar`;
+            msg = `Varan "${matches[0].name}" håller på att gå ut (det är ${daysText} kvar).`;
+          } else {
+            const itemLines = matches.map(i => {
+              const left = daysLeft(i.expirationDate);
+              const daysText = left === 0 ? "idag" : left === 1 ? "1 dag kvar" : `${left} dagar kvar`;
+              return `${i.name} (${daysText})`;
             });
+            msg = `${matches.length} varor håller på att gå ut: ${itemLines.join(", ")}.`;
           }
-        });
+          
+          navigator.serviceWorker.controller.postMessage({
+            action: 'PUSH_ALARM',
+            message: msg
+          });
+        }
       }
     };
 
-    return () => {
-      document.head.removeChild(script);
-    };
+    const interval = setInterval(checkTimeAndTriggerPush, 60000);
+    return () => clearInterval(interval);
   }, [settings.remindTime, settings.remindDaysBefore, items, hydrated]);
 
   const addItem = useCallback((name: string, expirationDate: Date, status: "pantry" | "pantry_dry" = "pantry") => {
