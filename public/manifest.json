@@ -1,0 +1,44 @@
+{
+  "name": "BästFöre",
+  "short_name": "BästFöre",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "description": "Håll koll på bäst före-datum i ditt kök.",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "widgets": [
+    {
+      "name": "Kylkollen",
+      "short_name": "Kylkollen",
+      "description": "Se direkt på hemskärmen vilka matvaror som håller på att gå ut.",
+      "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "variants": [
+        {
+          "template": "kylkollen-widget",
+          "width": "small",
+          "height": "small"
+        }
+      ]
+    }
+  ]
+}
